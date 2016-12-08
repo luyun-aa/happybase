@@ -1,14 +1,26 @@
 """
 HappyBase Batch module.
 """
-
+import socket
 from collections import defaultdict
 import logging
 from numbers import Integral
 
+from thrift.Thrift import TException
+
 from .hbase.ttypes import BatchMutation, Mutation
 
 logger = logging.getLogger(__name__)
+
+
+def refresh_connection(func):
+    def _(self, *args, **kwargs):
+        try:
+            func(self, *args, **kwargs)
+        except (TException, socket.error):
+            self._table.connection.refresh()
+            func(self, *args, **kwargs)
+    return _
 
 
 class Batch(object):
@@ -43,6 +55,7 @@ class Batch(object):
         self._mutations = defaultdict(list)
         self._mutation_count = 0
 
+    @refresh_connection
     def send(self):
         """Send the batch to the server."""
         bms = [BatchMutation(row, m) for row, m in self._mutations.iteritems()]

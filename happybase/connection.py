@@ -5,7 +5,9 @@ HappyBase connection module.
 """
 
 import logging
+import socket
 
+from thrift.Thrift import TException
 from thrift.transport.TSocket import TSocket
 from thrift.transport.TTransport import TBufferedTransport, TFramedTransport
 from thrift.protocol import TBinaryProtocol
@@ -27,6 +29,16 @@ DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9090
 DEFAULT_TRANSPORT = 'buffered'
 DEFAULT_COMPAT = '0.94'
+
+
+def refresh_connection(func):
+    def _(self, *args, **kwargs):
+        try:
+            func(self, *args, **kwargs)
+        except (TException, socket.error):
+            self.refresh()
+            func(self, *args, **kwargs)
+    return _
 
 
 class Connection(object):
@@ -130,6 +142,10 @@ class Connection(object):
         protocol = TBinaryProtocol.TBinaryProtocolAccelerated(self.transport)
         self.client = Hbase.Client(protocol)
 
+    def refresh(self):
+        self._refresh_thrift_client()
+        self.open()
+
     def _table_name(self, name):
         """Construct a table name by optionally adding a table name prefix."""
         if self.table_prefix is None:
@@ -201,6 +217,7 @@ class Connection(object):
     # Table administration and maintenance
     #
 
+    @refresh_connection
     def tables(self):
         """Return a list of table names available in this HBase instance.
 
@@ -220,6 +237,7 @@ class Connection(object):
 
         return names
 
+    @refresh_connection
     def create_table(self, name, families):
         """Create a table.
 
@@ -279,6 +297,7 @@ class Connection(object):
 
         self.client.createTable(name, column_descriptors)
 
+    @refresh_connection
     def delete_table(self, name, disable=False):
         """Delete the specified table.
 
@@ -298,6 +317,7 @@ class Connection(object):
         name = self._table_name(name)
         self.client.deleteTable(name)
 
+    @refresh_connection
     def enable_table(self, name):
         """Enable the specified table.
 
@@ -306,6 +326,7 @@ class Connection(object):
         name = self._table_name(name)
         self.client.enableTable(name)
 
+    @refresh_connection
     def disable_table(self, name):
         """Disable the specified table.
 
@@ -314,6 +335,7 @@ class Connection(object):
         name = self._table_name(name)
         self.client.disableTable(name)
 
+    @refresh_connection
     def is_table_enabled(self, name):
         """Return whether the specified table is enabled.
 
@@ -325,6 +347,7 @@ class Connection(object):
         name = self._table_name(name)
         return self.client.isTableEnabled(name)
 
+    @refresh_connection
     def compact_table(self, name, major=False):
         """Compact the specified table.
 
