@@ -9,6 +9,7 @@ from struct import Struct
 
 from Hbase_thrift import TScan
 from six import iteritems
+from thriftpy.thrift import TException
 
 from .batch import Batch
 from .util import thrift_type_to_dict, bytes_increment, OrderedDict
