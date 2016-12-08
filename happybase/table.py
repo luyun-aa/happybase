@@ -3,19 +3,29 @@ HappyBase table module.
 """
 
 import logging
+import socket
 from numbers import Integral
 from struct import Struct
 
+from Hbase_thrift import TScan
 from six import iteritems
 
-from Hbase_thrift import TScan
-
-from .util import thrift_type_to_dict, bytes_increment, OrderedDict
 from .batch import Batch
+from .util import thrift_type_to_dict, bytes_increment, OrderedDict
 
 logger = logging.getLogger(__name__)
 
 pack_i64 = Struct('>q').pack
+
+
+def refresh_connection(func):
+    def _(self, *args, **kwargs):
+        try:
+            func(self, *args, **kwargs)
+        except (TException, socket.error):
+            self.connection.refresh()
+            func(self, *args, **kwargs)
+    return _
 
 
 def make_row(cell_map, include_timestamp):
@@ -55,6 +65,7 @@ class Table(object):
             self.name,
         )
 
+    @refresh_connection
     def families(self):
         """Retrieve the column families for this table.
 
@@ -68,11 +79,13 @@ class Table(object):
             families[name] = thrift_type_to_dict(descriptor)
         return families
 
+    @refresh_connection
     def _column_family_names(self):
         """Retrieve the column family names for this table (internal use)"""
         names = self.connection.client.getColumnDescriptors(self.name).keys()
         return [name.rstrip(b':') for name in names]
 
+    @refresh_connection
     def regions(self):
         """Retrieve the regions for this table.
 
@@ -86,6 +99,7 @@ class Table(object):
     # Data retrieval
     #
 
+    @refresh_connection
     def row(self, row, columns=None, timestamp=None, include_timestamp=False):
         """Retrieve a single row of data.
 
@@ -131,6 +145,7 @@ class Table(object):
 
         return make_row(rows[0].columns, include_timestamp)
 
+    @refresh_connection
     def rows(self, rows, columns=None, timestamp=None,
              include_timestamp=False):
         """Retrieve multiple rows of data.
@@ -176,6 +191,7 @@ class Table(object):
         return [(r.row, make_row(r.columns, include_timestamp))
                 for r in results]
 
+    @refresh_connection
     def cells(self, row, column, versions=None, timestamp=None,
               include_timestamp=False):
         """Retrieve multiple versions of a single cell from the table.
@@ -219,6 +235,7 @@ class Table(object):
             for c in cells
         ]
 
+    @refresh_connection
     def scan(self, row_start=None, row_stop=None, row_prefix=None,
              columns=None, filter=None, timestamp=None,
              include_timestamp=False, batch_size=1000, scan_batching=None,
@@ -546,6 +563,7 @@ class Table(object):
         """
         self.put(row, {column: pack_i64(value)})
 
+    @refresh_connection
     def counter_inc(self, row, column, value=1):
         """Atomically increment (or decrements) a counter column.
 

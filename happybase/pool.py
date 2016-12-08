@@ -143,8 +143,7 @@ class ConnectionPool(object):
             # occurred in the Thrift layer, since we don't know whether
             # the connection is still usable.
             logger.info("Replacing tainted pool connection")
-            connection._refresh_thrift_client()
-            connection.open()
+            connection.refresh()
 
             # Reraise to caller; see contextlib.contextmanager() docs
             raise
